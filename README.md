@@ -32,7 +32,9 @@ npm run preview           # תצוגה מקדימה של ה-build
 1. צור פרויקט ב-[supabase.com](https://supabase.com).
 2. ב-SQL Editor הרץ את התוכן של [`supabase/schema.sql`](supabase/schema.sql)
    (יוצר את טבלת `closings` ואת מדיניות ה-RLS).
-3. העתק מ-Project Settings → API את ה-URL ואת ה-`anon` public key אל `.env`.
+3. הרץ גם את [`supabase/checklist-schema.sql`](supabase/checklist-schema.sql)
+   (יוצר את טבלאות תוכן הצ'קליסט וזורע אותן בתוכן הקיים).
+4. העתק מ-Project Settings → API את ה-URL ואת ה-`anon` public key אל `.env`.
 
 > ה-anon key גלוי ב-frontend — זה תקין ומתוכנן. ה-RLS מגביל את הפעולות המותרות
 > (רק insert ו-select על טבלת `closings`). זו מערכת פנים-מפעלית בסיכון נמוך.
@@ -48,9 +50,16 @@ npm run preview           # תצוגה מקדימה של ה-build
 קובצי ה-redirect ל-SPA כלולים (`public/_redirects` ל-Netlify/Cloudflare,
 `vercel.json` ל-Vercel) כדי שנתיב `/history` יעבוד גם ברענון ישיר.
 
+## עריכת תוכן הצ'קליסט
+
+תוכן הצ'קליסט נשמר ב-Supabase (טבלת `checklist_items`) וניתן לעריכה מ-Table Editor
+בלי לגעת בקוד ובלי פריסה מחדש. מדריך למנהל: [`docs/עריכת-הצ׳קליסט.md`](docs/עריכת-הצ׳קליסט.md).
+העובדים יכולים רק לקרוא את הרשימה; העריכה מוגנת מאחורי חשבון ה-Supabase.
+
 ## עמידות ברשת חלשה
 
 - מצב הסימונים והשם נשמרים ל-`localStorage` בזמן אמת — רענון בטעות לא מוחק התקדמות.
 - אם השמירה ל-Supabase נכשלת, מוצגת הודעה וכפתור "נסה שוב" **בלי לאבד את הסימונים ואת השם**.
 - זיהוי מצב offline והודעה ברורה לעובד.
+- טעינת הצ'קליסט עם timeout ונפילה לרשימה הקבועה שבקוד — אף פעם לא ייחסם עובד מלסגור.
 - לאחר שמירה מוצלחת ה-`localStorage` מתנקה כדי שהסגירה הבאה תתחיל נקייה.

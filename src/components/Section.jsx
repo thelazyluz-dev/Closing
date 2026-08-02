@@ -1,9 +1,8 @@
 import ChecklistItem from "./ChecklistItem.jsx";
-import { itemId } from "../checklist.js";
 
-export default function Section({ section, sectionIndex, checked, onToggle }) {
+export default function Section({ section, checked, onToggle }) {
   const doneInSection = section.items.reduce(
-    (n, _label, ii) => n + (checked[itemId(sectionIndex, ii)] ? 1 : 0),
+    (n, item) => n + (checked[item.id] ? 1 : 0),
     0
   );
 
@@ -16,18 +15,15 @@ export default function Section({ section, sectionIndex, checked, onToggle }) {
         </span>
       </div>
       <div className="space-y-2.5">
-        {section.items.map((label, ii) => {
-          const id = itemId(sectionIndex, ii);
-          return (
-            <ChecklistItem
-              key={id}
-              id={id}
-              label={label}
-              checked={Boolean(checked[id])}
-              onToggle={onToggle}
-            />
-          );
-        })}
+        {section.items.map((item) => (
+          <ChecklistItem
+            key={item.id}
+            id={item.id}
+            label={item.label}
+            checked={Boolean(checked[item.id])}
+            onToggle={onToggle}
+          />
+        ))}
       </div>
     </section>
   );

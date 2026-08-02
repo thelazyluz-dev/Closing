@@ -4,19 +4,14 @@ import ProgressBar from "./ProgressBar.jsx";
 import { useLocalStorage, clearStorage } from "../useLocalStorage.js";
 import { useRoute } from "../router.js";
 import { supabase, isSupabaseConfigured } from "../supabaseClient.js";
-import {
-  CHECKLIST,
-  CHECKLIST_VERSION,
-  TOP_NOTE,
-  ALL_ITEMS,
-  TOTAL_ITEMS,
-} from "../checklist.js";
+import { loadChecklist } from "../checklistSource.js";
 
 export const STORAGE_CHECKED = "closing.checked.v1";
 export const STORAGE_NAME = "closing.name.v1";
 
 export default function ChecklistScreen({ onComplete }) {
   const { navigate } = useRoute();
+  const [checklist, setChecklist] = useState(null); // תוכן הצ'קליסט הנטען
   const [checked, setChecked] = useLocalStorage(STORAGE_CHECKED, {});
   const [name, setName] = useLocalStorage(STORAGE_NAME, "");
   const [saving, setSaving] = useState(false);
@@ -24,6 +19,17 @@ export default function ChecklistScreen({ onComplete }) {
   const [online, setOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine
   );
+
+  // טעינת תוכן הצ'קליסט (מ-Supabase, עם נפילה לרשימה הקבועה).
+  useEffect(() => {
+    let alive = true;
+    loadChecklist().then((data) => {
+      if (alive) setChecklist(data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const on = () => setOnline(true);
@@ -36,14 +42,17 @@ export default function ChecklistScreen({ onComplete }) {
     };
   }, []);
 
+  const allItems = checklist?.allItems ?? [];
+  const total = checklist?.total ?? 0;
+
   const doneCount = useMemo(
-    () => ALL_ITEMS.reduce((n, it) => n + (checked[it.id] ? 1 : 0), 0),
-    [checked]
+    () => allItems.reduce((n, it) => n + (checked[it.id] ? 1 : 0), 0),
+    [allItems, checked]
   );
 
   const trimmedName = name.trim();
-  const remaining = TOTAL_ITEMS - doneCount;
-  const allDone = remaining === 0;
+  const remaining = total - doneCount;
+  const allDone = total > 0 && remaining === 0;
   const nameOk = trimmedName.length > 0;
   const canSubmit = allDone && nameOk && !saving;
 
@@ -66,17 +75,16 @@ export default function ChecklistScreen({ onComplete }) {
     }
 
     // snapshot של הפריטים שסומנו: מערך של { section, label }
-    const items = ALL_ITEMS.filter((it) => checked[it.id]).map((it) => ({
-      section: it.section,
-      label: it.label,
-    }));
+    const items = allItems
+      .filter((it) => checked[it.id])
+      .map((it) => ({ section: it.section, label: it.label }));
 
     setSaving(true);
     const { data, error: dbError } = await supabase
       .from("closings")
       .insert({
         worker_name: trimmedName,
-        checklist_version: CHECKLIST_VERSION,
+        checklist_version: checklist?.version ?? "v1",
         items,
       })
       .select("id, worker_name, completed_at")
@@ -97,9 +105,18 @@ export default function ChecklistScreen({ onComplete }) {
     onComplete(data);
   }
 
+  // מצב טעינה קצר בזמן משיכת תוכן הצ'קליסט.
+  if (!checklist) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-500">
+        טוען צ'קליסט…
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-full pb-28">
-      <ProgressBar done={doneCount} total={TOTAL_ITEMS} />
+      <ProgressBar done={doneCount} total={total} />
 
       <header className="px-4 pt-4">
         <div className="flex items-center justify-between">
@@ -115,17 +132,18 @@ export default function ChecklistScreen({ onComplete }) {
           </button>
         </div>
 
-        <div className="mt-3 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 px-4 py-3 font-semibold">
-          ⚠️ {TOP_NOTE}
-        </div>
+        {checklist.topNote && (
+          <div className="mt-3 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 px-4 py-3 font-semibold">
+            ⚠️ {checklist.topNote}
+          </div>
+        )}
       </header>
 
       <main className="px-4 pt-5 max-w-lg mx-auto">
-        {CHECKLIST.map((section, si) => (
+        {checklist.sections.map((section) => (
           <Section
-            key={si}
+            key={section.section}
             section={section}
-            sectionIndex={si}
             checked={checked}
             onToggle={toggle}
           />

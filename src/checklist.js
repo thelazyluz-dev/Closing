@@ -57,18 +57,5 @@ export const CHECKLIST = [
   },
 ];
 
-// מזהה יציב לכל פריט: "sectionIndex-itemIndex".
-export function itemId(sectionIndex, itemIndex) {
-  return `${sectionIndex}-${itemIndex}`;
-}
-
-// כל הפריטים כרשימה שטוחה עם מזהה, שם הסעיף והתווית — נוח ל-state ולשמירה.
-export const ALL_ITEMS = CHECKLIST.flatMap((section, si) =>
-  section.items.map((label, ii) => ({
-    id: itemId(si, ii),
-    section: section.section,
-    label,
-  }))
-);
-
-export const TOTAL_ITEMS = ALL_ITEMS.length;
+// הערה: זהו קובץ תוכן בלבד. הצ'קליסט בפועל נטען מ-Supabase (טבלת checklist_items),
+// והתוכן כאן משמש כרשת ביטחון אם ה-DB לא זמין (ראה src/checklistSource.js).
