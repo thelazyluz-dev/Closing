@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useLayoutEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Section from "./Section.jsx";
 import ProgressBar from "./ProgressBar.jsx";
 import Loading from "./Loading.jsx";
@@ -18,9 +18,6 @@ export default function ChecklistScreen({ onComplete }) {
   const [online, setOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine
   );
-  // מדידת גובה פס הפעולה הקבוע כדי לשמור מספיק ריווח תחתון (שדה השם לא ייחתך).
-  const actionBarRef = useRef(null);
-  const [barHeight, setBarHeight] = useState(0);
 
   // טעינת תוכן הצ'קליסט (מ-Supabase, עם נפילה לרשימה הקבועה).
   useEffect(() => {
@@ -43,21 +40,6 @@ export default function ChecklistScreen({ onComplete }) {
       window.removeEventListener("offline", off);
     };
   }, []);
-
-  // עוקב אחרי גובה פס הפעולה (משתנה כשמופיעות שורות חיווי/הודעות).
-  useLayoutEffect(() => {
-    const el = actionBarRef.current;
-    if (!el) return;
-    const update = () => setBarHeight(el.offsetHeight);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    window.addEventListener("resize", update);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [checklist]);
 
   const allItems = checklist?.allItems ?? [];
   const total = checklist?.total ?? 0;
@@ -135,10 +117,7 @@ export default function ChecklistScreen({ onComplete }) {
   }
 
   return (
-    <div
-      className="min-h-full"
-      style={{ paddingBottom: (barHeight || 120) + 24 }}
-    >
+    <div className="min-h-full pb-8">
       <ProgressBar done={doneCount} total={total} />
 
       <header className="px-4 pt-4">
@@ -191,15 +170,9 @@ export default function ChecklistScreen({ onComplete }) {
             className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-lg outline-none focus:border-sky-500"
           />
         </div>
-      </main>
 
-      {/* אזור פעולה קבוע בתחתית */}
-      <div
-        ref={actionBarRef}
-        className="fixed bottom-0 inset-x-0 border-t border-slate-200 bg-white/95 backdrop-blur px-4 pt-3"
-        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-      >
-        <div className="max-w-lg mx-auto">
+        {/* אזור הפעולה — בסוף הדף, לא קבוע על המסך */}
+        <div className="mt-6">
           {!online && (
             <p className="text-center text-sm text-amber-700 mb-2">
               אין חיבור לרשת — הסימונים נשמרים במכשיר.
@@ -208,11 +181,9 @@ export default function ChecklistScreen({ onComplete }) {
           {error && (
             <p className="text-center text-sm text-red-600 mb-2">{error}</p>
           )}
-          {!canSubmit && !saving && (
+          {allDone && !nameOk && !saving && (
             <p className="text-center text-sm text-slate-500 mb-2">
-              {!allDone && `נותרו ${remaining} פריטים לסימון`}
-              {!allDone && !nameOk && " · "}
-              {!nameOk && "יש להזין שם"}
+              יש להזין שם
             </p>
           )}
           {canSubmit && (
@@ -234,7 +205,7 @@ export default function ChecklistScreen({ onComplete }) {
             {saving ? "שומר…" : error ? "נסה שוב" : "סיום וסגירה"}
           </button>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
