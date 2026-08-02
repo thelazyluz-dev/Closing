@@ -77,8 +77,15 @@ export default function ChecklistScreen({ onComplete }) {
   function toggle(id) {
     setChecked((prev) => {
       const next = { ...prev };
-      if (next[id]) delete next[id];
-      else next[id] = true;
+      if (next[id]) {
+        delete next[id];
+      } else {
+        next[id] = true;
+        // רטט קצר במכשירים שתומכים — משוב מגע נעים בעת סימון.
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate(15);
+        }
+      }
       return next;
     });
   }
@@ -166,10 +173,11 @@ export default function ChecklistScreen({ onComplete }) {
       </header>
 
       <main className="px-4 pt-5 max-w-lg mx-auto">
-        {checklist.sections.map((section) => (
+        {checklist.sections.map((section, si) => (
           <Section
             key={section.section}
             section={section}
+            sectionIndex={si}
             checked={checked}
             onToggle={toggle}
           />

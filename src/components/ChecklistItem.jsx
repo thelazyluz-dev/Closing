@@ -18,7 +18,7 @@ export default function ChecklistItem({ id, label, checked, onToggle }) {
       />
       <span
         className={
-          "text-lg leading-tight " +
+          "text-xl leading-snug " +
           (checked ? "text-slate-500 line-through" : "text-slate-900")
         }
       >

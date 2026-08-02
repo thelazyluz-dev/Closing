@@ -1,11 +1,27 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  sortableKeyboardCoordinates,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { supabase, isSupabaseConfigured } from "../supabaseClient.js";
 import { withTimeout } from "../checklistSource.js";
 import { CHECKLIST, TOP_NOTE } from "../checklist.js";
 import { useRoute } from "../router.js";
 import { genId } from "../uuid.js";
+import { accentFor } from "../accents.js";
 
-// בונה מבנה עריכה מהרשימה הקבועה (כשאין חיבור ל-DB) — עם מזהים חדשים כדי ששמירה תעבוד.
 function fromStatic() {
   return {
     notes: [{ id: genId(), text: TOP_NOTE }],
@@ -17,7 +33,6 @@ function fromStatic() {
   };
 }
 
-// ממיר שורות DB (מקובצות לפי סעיף, בסדר position) למבנה עריכה.
 function fromRows(itemRows, noteRows) {
   const sections = [];
   const byName = new Map();
@@ -42,15 +57,196 @@ function move(arr, i, dir) {
   return next;
 }
 
+const HANDLE =
+  "w-8 h-9 shrink-0 grid place-items-center rounded-lg border border-slate-300 bg-slate-50 text-slate-400 cursor-grab active:cursor-grabbing touch-none";
+const ICON =
+  "w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-slate-300 bg-white text-slate-600 disabled:opacity-30 active:bg-slate-100";
+
+// שורת פריט הניתנת לגרירה.
+function ItemRow({ id, value, onChange, onDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <button
+        type="button"
+        className={HANDLE}
+        {...attributes}
+        {...listeners}
+        aria-label="גרור לסידור"
+      >
+        ⠿
+      </button>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="טקסט הפריט"
+        className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-sky-500"
+      />
+      <button
+        type="button"
+        className={ICON + " text-red-600 border-red-200"}
+        onClick={onDelete}
+        aria-label="מחק פריט"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+// כרטיס סעיף הניתן לגרירה, ובתוכו רשימת פריטים הניתנים לגרירה.
+function SectionCard({ section, si, api }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: section.key });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="rounded-2xl border border-slate-200 bg-white p-4"
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          type="button"
+          className={HANDLE}
+          {...attributes}
+          {...listeners}
+          aria-label="גרור סעיף"
+        >
+          ⠿
+        </button>
+        <span
+          className="inline-block w-1.5 h-7 rounded-full shrink-0"
+          style={{ backgroundColor: accentFor(si) }}
+          aria-hidden="true"
+        />
+        <input
+          type="text"
+          value={section.name}
+          onChange={(e) => api.updateSectionName(si, e.target.value)}
+          placeholder="שם הסעיף"
+          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-lg font-bold outline-none focus:border-sky-500"
+        />
+        <button
+          type="button"
+          className={ICON + " text-red-600 border-red-200"}
+          onClick={() => api.deleteSection(si)}
+          aria-label="מחק סעיף"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="space-y-2 pr-2">
+        <SortableContext
+          items={section.items.map((it) => it.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {section.items.map((it, ii) => (
+            <ItemRow
+              key={it.id}
+              id={it.id}
+              value={it.label}
+              onChange={(v) => api.updateItem(si, ii, v)}
+              onDelete={() => api.deleteItem(si, ii)}
+            />
+          ))}
+        </SortableContext>
+        <button
+          type="button"
+          onClick={() => api.addItem(si)}
+          className="mt-1 text-sm font-semibold text-emerald-700"
+        >
+          + הוסף פריט
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// תצוגה מקדימה — איך הצ'קליסט ייראה לעובד (מהעריכה הנוכחית, כולל שינויים שלא נשמרו).
+function Preview({ data }) {
+  const notes = data.notes.map((n) => n.text.trim()).filter(Boolean);
+  const sections = data.sections
+    .map((s) => ({
+      name: s.name.trim(),
+      items: s.items.map((i) => i.label.trim()).filter(Boolean),
+    }))
+    .filter((s) => s.name && s.items.length);
+
+  return (
+    <div className="rounded-2xl border border-slate-300 bg-slate-100 p-4">
+      <div className="text-xs text-slate-500 mb-3 text-center">
+        כך העובד רואה את הצ'קליסט
+      </div>
+      <h3 className="text-xl font-bold text-slate-900 mb-2">סגירת מפעל</h3>
+      <div className="space-y-2 mb-4">
+        {notes.map((n, i) => (
+          <div
+            key={i}
+            className="rounded-xl bg-amber-100 border border-amber-300 text-amber-900 px-3 py-2 text-sm font-semibold"
+          >
+            ⚠️ {n}
+          </div>
+        ))}
+      </div>
+      <div className="space-y-4">
+        {sections.map((s, si) => (
+          <div key={si}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span
+                className="inline-block w-1.5 h-5 rounded-full"
+                style={{ backgroundColor: accentFor(si) }}
+              />
+              <h4 className="text-lg font-bold text-slate-800">{s.name}</h4>
+            </div>
+            <div className="space-y-1.5">
+              {s.items.map((label, ii) => (
+                <div
+                  key={ii}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
+                >
+                  <span className="w-5 h-5 rounded border-2 border-slate-300 shrink-0" />
+                  <span className="text-slate-800">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {sections.length === 0 && (
+          <p className="text-sm text-slate-400 text-center">אין פריטים להצגה.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ManagerScreen() {
   const { navigate } = useRoute();
-  const [status, setStatus] = useState("loading"); // loading | ready
+  const [status, setStatus] = useState("loading");
   const [dbWarning, setDbWarning] = useState("");
   const [data, setData] = useState({ notes: [], sections: [] });
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState(null); // { type: 'ok'|'err', text }
+  const [saveMsg, setSaveMsg] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
   const loadedItemIds = useRef([]);
   const loadedNoteIds = useRef([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -116,7 +312,7 @@ export default function ManagerScreen() {
     load();
   }, [load]);
 
-  // ---- עריכת הערות ----
+  // ---- הערות ----
   const addNote = () =>
     setData((d) => ({ ...d, notes: [...d.notes, { id: genId(), text: "" }] }));
   const updateNote = (i, text) =>
@@ -130,54 +326,75 @@ export default function ManagerScreen() {
   const moveNote = (i, dir) =>
     setData((d) => ({ ...d, notes: move(d.notes, i, dir) }));
 
-  // ---- עריכת סעיפים ----
+  // ---- סעיפים / פריטים (API שמועבר לכרטיסים) ----
+  const api = {
+    updateSectionName: (si, name) =>
+      setData((d) => {
+        const sections = d.sections.slice();
+        sections[si] = { ...sections[si], name };
+        return { ...d, sections };
+      }),
+    deleteSection: (si) =>
+      setData((d) => ({ ...d, sections: d.sections.filter((_, k) => k !== si) })),
+    addItem: (si) =>
+      setData((d) => {
+        const sections = d.sections.slice();
+        const s = sections[si];
+        sections[si] = { ...s, items: [...s.items, { id: genId(), label: "" }] };
+        return { ...d, sections };
+      }),
+    updateItem: (si, ii, label) =>
+      setData((d) => {
+        const sections = d.sections.slice();
+        const items = sections[si].items.slice();
+        items[ii] = { ...items[ii], label };
+        sections[si] = { ...sections[si], items };
+        return { ...d, sections };
+      }),
+    deleteItem: (si, ii) =>
+      setData((d) => {
+        const sections = d.sections.slice();
+        sections[si] = {
+          ...sections[si],
+          items: sections[si].items.filter((_, k) => k !== ii),
+        };
+        return { ...d, sections };
+      }),
+  };
+
   const addSection = () =>
     setData((d) => ({
       ...d,
       sections: [...d.sections, { key: genId(), name: "", items: [] }],
     }));
-  const updateSectionName = (si, name) =>
-    setData((d) => {
-      const sections = d.sections.slice();
-      sections[si] = { ...sections[si], name };
-      return { ...d, sections };
-    });
-  const deleteSection = (si) =>
-    setData((d) => ({ ...d, sections: d.sections.filter((_, k) => k !== si) }));
-  const moveSection = (si, dir) =>
-    setData((d) => ({ ...d, sections: move(d.sections, si, dir) }));
 
-  // ---- עריכת פריטים ----
-  const addItem = (si) =>
+  // גרירה: מזהה אם נגרר סעיף או פריט, ומסדר בהתאם (פריט נשאר בתוך הסעיף שלו).
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const secIdx = data.sections.findIndex((s) => s.key === active.id);
+    if (secIdx !== -1) {
+      const overIdx = data.sections.findIndex((s) => s.key === over.id);
+      if (overIdx === -1) return;
+      setData((d) => ({ ...d, sections: arrayMove(d.sections, secIdx, overIdx) }));
+      return;
+    }
+
+    const si = data.sections.findIndex((s) =>
+      s.items.some((it) => it.id === active.id)
+    );
+    if (si === -1) return;
+    const items = data.sections[si].items;
+    const from = items.findIndex((it) => it.id === active.id);
+    const to = items.findIndex((it) => it.id === over.id);
+    if (to === -1) return; // נגרר לסעיף אחר — מתעלמים
     setData((d) => {
       const sections = d.sections.slice();
-      const s = sections[si];
-      sections[si] = { ...s, items: [...s.items, { id: genId(), label: "" }] };
+      sections[si] = { ...sections[si], items: arrayMove(sections[si].items, from, to) };
       return { ...d, sections };
     });
-  const updateItem = (si, ii, label) =>
-    setData((d) => {
-      const sections = d.sections.slice();
-      const items = sections[si].items.slice();
-      items[ii] = { ...items[ii], label };
-      sections[si] = { ...sections[si], items };
-      return { ...d, sections };
-    });
-  const deleteItem = (si, ii) =>
-    setData((d) => {
-      const sections = d.sections.slice();
-      sections[si] = {
-        ...sections[si],
-        items: sections[si].items.filter((_, k) => k !== ii),
-      };
-      return { ...d, sections };
-    });
-  const moveItem = (si, ii, dir) =>
-    setData((d) => {
-      const sections = d.sections.slice();
-      sections[si] = { ...sections[si], items: move(sections[si].items, ii, dir) };
-      return { ...d, sections };
-    });
+  }
 
   // ---- שמירה ----
   async function save() {
@@ -187,7 +404,6 @@ export default function ManagerScreen() {
       return;
     }
 
-    // בונים רשימות סופיות עם position בקפיצות של 10, מדלגים על ריקים.
     const items = [];
     let pos = 0;
     for (const s of data.sections) {
@@ -240,8 +456,8 @@ export default function ManagerScreen() {
       }
       setSaving(false);
       setSaveMsg({ type: "ok", text: "נשמר בהצלחה ✅" });
-      await load(); // רענון כדי לסנכרן מזהים ומיקומים
-    } catch (e) {
+      await load();
+    } catch {
       setSaving(false);
       setSaveMsg({
         type: "err",
@@ -249,9 +465,6 @@ export default function ManagerScreen() {
       });
     }
   }
-
-  const iconBtn =
-    "w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-slate-300 bg-white text-slate-600 disabled:opacity-30 active:bg-slate-100";
 
   if (status === "loading") {
     return (
@@ -290,6 +503,21 @@ export default function ManagerScreen() {
           </div>
         )}
 
+        <div className="mb-5">
+          <button
+            type="button"
+            onClick={() => setShowPreview((v) => !v)}
+            className="w-full rounded-xl border border-slate-300 bg-white font-semibold py-3 active:bg-slate-50"
+          >
+            {showPreview ? "הסתר תצוגה מקדימה" : "👁 תצוגה מקדימה"}
+          </button>
+          {showPreview && (
+            <div className="mt-3">
+              <Preview data={data} />
+            </div>
+          )}
+        </div>
+
         {/* הערות */}
         <section className="mb-8">
           <div className="flex items-center justify-between mb-2">
@@ -311,7 +539,7 @@ export default function ManagerScreen() {
                 <div className="flex flex-col gap-1">
                   <button
                     type="button"
-                    className={iconBtn}
+                    className={ICON}
                     onClick={() => moveNote(i, -1)}
                     disabled={i === 0}
                     aria-label="העלה"
@@ -320,7 +548,7 @@ export default function ManagerScreen() {
                   </button>
                   <button
                     type="button"
-                    className={iconBtn}
+                    className={ICON}
                     onClick={() => moveNote(i, 1)}
                     disabled={i === data.notes.length - 1}
                     aria-label="הורד"
@@ -337,7 +565,7 @@ export default function ManagerScreen() {
                 />
                 <button
                   type="button"
-                  className={iconBtn + " text-red-600 border-red-200"}
+                  className={ICON + " text-red-600 border-red-200"}
                   onClick={() => deleteNote(i)}
                   aria-label="מחק"
                 >
@@ -348,7 +576,7 @@ export default function ManagerScreen() {
           </div>
         </section>
 
-        {/* סעיפים ופריטים */}
+        {/* סעיפים ופריטים — גרירה לסידור */}
         <section>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-lg font-bold text-slate-800">סעיפים ופריטים</h2>
@@ -360,106 +588,27 @@ export default function ManagerScreen() {
               + הוסף סעיף
             </button>
           </div>
+          <p className="text-xs text-slate-400 mb-3">גרור מהידית ⠿ כדי לשנות סדר.</p>
 
-          <div className="space-y-4">
-            {data.sections.map((s, si) => (
-              <div
-                key={s.key}
-                className="rounded-2xl border border-slate-200 bg-white p-4"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex flex-col gap-1">
-                    <button
-                      type="button"
-                      className={iconBtn}
-                      onClick={() => moveSection(si, -1)}
-                      disabled={si === 0}
-                      aria-label="העלה סעיף"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      type="button"
-                      className={iconBtn}
-                      onClick={() => moveSection(si, 1)}
-                      disabled={si === data.sections.length - 1}
-                      aria-label="הורד סעיף"
-                    >
-                      ▼
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={s.name}
-                    onChange={(e) => updateSectionName(si, e.target.value)}
-                    placeholder="שם הסעיף"
-                    className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-lg font-bold outline-none focus:border-sky-500"
-                  />
-                  <button
-                    type="button"
-                    className={iconBtn + " text-red-600 border-red-200"}
-                    onClick={() => deleteSection(si)}
-                    aria-label="מחק סעיף"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="space-y-2 pr-2">
-                  {s.items.map((it, ii) => (
-                    <div key={it.id} className="flex items-center gap-2">
-                      <div className="flex flex-col gap-1">
-                        <button
-                          type="button"
-                          className={iconBtn}
-                          onClick={() => moveItem(si, ii, -1)}
-                          disabled={ii === 0}
-                          aria-label="העלה פריט"
-                        >
-                          ▲
-                        </button>
-                        <button
-                          type="button"
-                          className={iconBtn}
-                          onClick={() => moveItem(si, ii, 1)}
-                          disabled={ii === s.items.length - 1}
-                          aria-label="הורד פריט"
-                        >
-                          ▼
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        value={it.label}
-                        onChange={(e) => updateItem(si, ii, e.target.value)}
-                        placeholder="טקסט הפריט"
-                        className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-sky-500"
-                      />
-                      <button
-                        type="button"
-                        className={iconBtn + " text-red-600 border-red-200"}
-                        onClick={() => deleteItem(si, ii)}
-                        aria-label="מחק פריט"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => addItem(si)}
-                    className="mt-1 text-sm font-semibold text-emerald-700"
-                  >
-                    + הוסף פריט
-                  </button>
-                </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={data.sections.map((s) => s.key)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-4">
+                {data.sections.map((s, si) => (
+                  <SectionCard key={s.key} section={s} si={si} api={api} />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         </section>
       </main>
 
-      {/* פס שמירה קבוע */}
       <div className="fixed bottom-0 inset-x-0 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3">
         <div className="max-w-xl mx-auto">
           {saveMsg && (

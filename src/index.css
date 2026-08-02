@@ -8,17 +8,75 @@ body,
   height: 100%;
 }
 
+/* טקסט מעט גדול יותר בכל האפליקציה (Tailwind מבוסס rem, אז זה מגדיל הכל בעדינות) */
+html {
+  font-size: 17px;
+}
+
 body {
   margin: 0;
   background-color: #f1f5f9;
   color: #0f172a;
   -webkit-tap-highlight-color: transparent;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, "Noto Sans Hebrew", sans-serif;
+  font-family: "Heebo", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans Hebrew", sans-serif;
+  line-height: 1.5;
 }
 
 /* מונע זום לא רצוי ב-iOS כשנוגעים בשדה טקסט (גופן קטן מ-16px) */
 input,
 button {
   font-size: 16px;
+  font-family: inherit;
+}
+
+/* ---- אנימציית מסך האישור (#7) ---- */
+@keyframes pop-in {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes draw-check {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes fade-up {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.success-badge {
+  animation: pop-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.success-check {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: draw-check 0.5s 0.25s ease-out forwards;
+}
+.success-fade {
+  animation: fade-up 0.5s 0.15s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .success-badge,
+  .success-check,
+  .success-fade {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+    transform: none;
+  }
 }
