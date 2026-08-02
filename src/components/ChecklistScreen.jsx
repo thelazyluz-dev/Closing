@@ -147,6 +147,11 @@ export default function ChecklistScreen({ onComplete }) {
       <ProgressBar done={doneCount} total={total} />
 
       <header className="px-4 pt-4">
+        <img
+          src="/logo.png"
+          alt="דביק תעשיות — שדה בוקר"
+          className="h-12 w-auto mb-3"
+        />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">סגירת מפעל</h1>
           <button
