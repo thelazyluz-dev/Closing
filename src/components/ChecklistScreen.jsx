@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect, useRef, useLayoutEffect } from "react";
 import Section from "./Section.jsx";
 import ProgressBar from "./ProgressBar.jsx";
 import { useLocalStorage, clearStorage } from "../useLocalStorage.js";
-import { useRoute } from "../router.js";
 import { supabase, isSupabaseConfigured } from "../supabaseClient.js";
 import { loadChecklist } from "../checklistSource.js";
 
@@ -10,7 +9,6 @@ export const STORAGE_CHECKED = "closing.checked.v1";
 export const STORAGE_NAME = "closing.name.v1";
 
 export default function ChecklistScreen({ onComplete }) {
-  const { navigate } = useRoute();
   const [checklist, setChecklist] = useState(null); // תוכן הצ'קליסט הנטען
   const [checked, setChecked] = useLocalStorage(STORAGE_CHECKED, {});
   const [name, setName] = useLocalStorage(STORAGE_NAME, "");
@@ -152,16 +150,7 @@ export default function ChecklistScreen({ onComplete }) {
           alt="דביק תעשיות — שדה בוקר"
           className="h-12 w-auto mb-3"
         />
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">סגירת מפעל</h1>
-          <button
-            type="button"
-            onClick={() => navigate("/history", { from: "/" })}
-            className="shrink-0 text-sm font-medium text-sky-700 underline"
-          >
-            היסטוריה
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold text-slate-900">סגירת מפעל</h1>
 
         {checklist.notes.length > 0 && (
           <div className="mt-3 space-y-2">

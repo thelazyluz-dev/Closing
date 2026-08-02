@@ -87,7 +87,7 @@ function ItemRow({ id, value, onChange, onDelete }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="טקסט הפריט"
-        className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-sky-500"
+        className="flex-1 min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-sky-500"
       />
       <button
         type="button"
@@ -136,7 +136,7 @@ function SectionCard({ section, si, api }) {
           value={section.name}
           onChange={(e) => api.updateSectionName(si, e.target.value)}
           placeholder="שם הסעיף"
-          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-lg font-bold outline-none focus:border-sky-500"
+          className="flex-1 min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-lg font-bold outline-none focus:border-sky-500"
         />
         <button
           type="button"
@@ -476,9 +476,9 @@ export default function ManagerScreen() {
 
   return (
     <div className="min-h-full pb-28 bg-slate-100">
-      <header className="sticky top-0 z-10 bg-slate-900 text-white px-4 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">ניהול צ'קליסט</h1>
-        <div className="flex items-center gap-2">
+      <header className="sticky top-0 z-10 bg-slate-900 text-white px-4 py-4 flex items-center justify-between gap-2">
+        <h1 className="text-lg font-bold truncate min-w-0">ניהול צ'קליסט</h1>
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => navigate("/history", { from: "/manager" })}
@@ -561,7 +561,7 @@ export default function ManagerScreen() {
                   value={n.text}
                   onChange={(e) => updateNote(i, e.target.value)}
                   placeholder="טקסט ההערה"
-                  className="flex-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 outline-none focus:border-amber-500"
+                  className="flex-1 min-w-0 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 outline-none focus:border-amber-500"
                 />
                 <button
                   type="button"
