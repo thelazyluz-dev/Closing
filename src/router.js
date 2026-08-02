@@ -16,14 +16,20 @@ function getPath() {
   return window.location.pathname || "/";
 }
 
-export function navigate(to) {
+export function navigate(to, state = {}) {
   if (getPath() === to) return;
-  window.history.pushState({}, "", to);
+  window.history.pushState(state, "", to);
   window.dispatchEvent(new Event("app:navigate"));
+}
+
+// מחזיר את המסך שממנו הגענו (אם נשמר ב-state), לחישוב יעד "חזרה".
+export function originPath(fallback = "/") {
+  if (typeof window === "undefined") return fallback;
+  return window.history.state?.from || fallback;
 }
 
 export function useRoute() {
   const path = useSyncExternalStore(subscribe, getPath, () => "/");
-  const go = useCallback((to) => navigate(to), []);
+  const go = useCallback((to, state) => navigate(to, state), []);
   return { path, navigate: go };
 }

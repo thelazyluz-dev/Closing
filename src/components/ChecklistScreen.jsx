@@ -125,7 +125,7 @@ export default function ChecklistScreen({ onComplete }) {
           </h1>
           <button
             type="button"
-            onClick={() => navigate("/history")}
+            onClick={() => navigate("/history", { from: "/" })}
             className="shrink-0 text-sm font-medium text-sky-700 underline"
           >
             היסטוריה

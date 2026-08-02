@@ -45,6 +45,10 @@ create policy "anon write notes" on checklist_notes for all to anon using (true)
 drop policy if exists "anon read settings" on checklist_settings;
 create policy "anon read settings" on checklist_settings for select to anon using (true);
 
+-- מאפשר למנהל לנקות היסטוריה דרך /manager → היסטוריה (מחיקת רשומות מ-closings).
+drop policy if exists "anon delete closings" on closings;
+create policy "anon delete closings" on closings for delete to anon using (true);
+
 -- ── זריעה: התוכן הקיים, רק אם הטבלאות עדיין ריקות ─────────────
 insert into checklist_settings (key, value) values
   ('checklist_version', 'v1')

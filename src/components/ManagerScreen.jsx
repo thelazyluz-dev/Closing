@@ -268,7 +268,7 @@ export default function ManagerScreen() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => navigate("/history")}
+            onClick={() => navigate("/history", { from: "/manager" })}
             className="rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium active:bg-slate-600"
           >
             היסטוריה
