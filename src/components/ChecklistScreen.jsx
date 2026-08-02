@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef, useLayoutEffect } from "react";
 import Section from "./Section.jsx";
 import ProgressBar from "./ProgressBar.jsx";
+import Loading from "./Loading.jsx";
 import { useLocalStorage, clearStorage } from "../useLocalStorage.js";
 import { supabase, isSupabaseConfigured } from "../supabaseClient.js";
 import { loadChecklist } from "../checklistSource.js";
@@ -130,11 +131,7 @@ export default function ChecklistScreen({ onComplete }) {
 
   // מצב טעינה קצר בזמן משיכת תוכן הצ'קליסט.
   if (!checklist) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-slate-500">
-        טוען צ'קליסט…
-      </div>
-    );
+    return <Loading label="טוען צ'קליסט…" />;
   }
 
   return (
@@ -218,6 +215,11 @@ export default function ChecklistScreen({ onComplete }) {
               {!nameOk && "יש להזין שם"}
             </p>
           )}
+          {canSubmit && (
+            <p className="text-center text-sm text-emerald-700 font-semibold mb-2">
+              הכל מוכן — אפשר לסגור ✅
+            </p>
+          )}
           <button
             type="button"
             onClick={handleSubmit}
@@ -225,7 +227,7 @@ export default function ChecklistScreen({ onComplete }) {
             className={
               "w-full rounded-xl text-lg font-bold py-4 transition-colors " +
               (canSubmit
-                ? "bg-emerald-600 text-white active:bg-emerald-700"
+                ? "bg-emerald-600 text-white active:bg-emerald-700 btn-ready"
                 : "bg-slate-200 text-slate-400 cursor-not-allowed")
             }
           >

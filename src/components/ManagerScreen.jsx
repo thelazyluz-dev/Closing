@@ -21,6 +21,7 @@ import { CHECKLIST, TOP_NOTE } from "../checklist.js";
 import { useRoute } from "../router.js";
 import { genId } from "../uuid.js";
 import { accentFor } from "../accents.js";
+import Loading from "./Loading.jsx";
 
 function fromStatic() {
   return {
@@ -186,7 +187,7 @@ function Preview({ data }) {
     .filter((s) => s.name && s.items.length);
 
   return (
-    <div className="rounded-2xl border border-slate-300 bg-slate-100 p-4">
+    <div className="rounded-2xl border border-slate-300 bg-[#f5f4f1] p-4">
       <div className="text-xs text-slate-500 mb-3 text-center">
         כך העובד רואה את הצ'קליסט
       </div>
@@ -468,15 +469,11 @@ export default function ManagerScreen() {
   }
 
   if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-slate-500">
-        טוען…
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
-    <div className="min-h-full pb-28 bg-slate-100">
+    <div className="min-h-full pb-28 bg-[#f5f4f1]">
       <header className="sticky top-0 z-10 bg-slate-900 text-white px-4 py-4 flex items-center justify-between gap-2">
         <h1 className="text-lg font-bold truncate min-w-0">ניהול צ'קליסט</h1>
         <div className="flex items-center gap-2 shrink-0">

@@ -3,6 +3,7 @@ import { useRoute } from "./router.js";
 import ChecklistScreen from "./components/ChecklistScreen.jsx";
 import SuccessScreen from "./components/SuccessScreen.jsx";
 import HistoryScreen from "./components/HistoryScreen.jsx";
+import Loading from "./components/Loading.jsx";
 
 // טעינה עצלה — קוד הניהול (כולל ספריית הגרירה) יורד רק כשנכנסים ל-/manager,
 // כך שהעובדים לא מורידים אותו לחינם.
@@ -18,13 +19,7 @@ export default function App() {
 
   if (path === "/manager") {
     return (
-      <Suspense
-        fallback={
-          <div className="min-h-screen flex items-center justify-center text-slate-500">
-            טוען…
-          </div>
-        }
-      >
+      <Suspense fallback={<Loading />}>
         <ManagerScreen />
       </Suspense>
     );
