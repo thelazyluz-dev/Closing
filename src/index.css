@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #f1f5f9;
+  color: #0f172a;
+  -webkit-tap-highlight-color: transparent;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans Hebrew", sans-serif;
+}
+
+/* מונע זום לא רצוי ב-iOS כשנוגעים בשדה טקסט (גופן קטן מ-16px) */
+input,
+button {
+  font-size: 16px;
+}
