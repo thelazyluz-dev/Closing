@@ -6,10 +6,10 @@ import {
 } from "./checklist.js";
 
 // צורה מנורמלת שכל שאר האפליקציה עובדת מולה:
-//   { source, topNote, version, sections: [{ section, items: [{ id, label }] }],
+//   { source, notes: [text], version, sections: [{ section, items: [{ id, label }] }],
 //     allItems: [{ id, section, label }], total }
 
-function build(source, topNote, version, rows) {
+function build(source, notes, version, rows) {
   // rows: [{ id, section, label }] בסדר הנכון. מקבצים לפי סעיף לפי סדר הופעה.
   const sections = [];
   const byName = new Map();
@@ -24,7 +24,7 @@ function build(source, topNote, version, rows) {
   }
   return {
     source,
-    topNote,
+    notes,
     version,
     sections,
     allItems: rows.map((r) => ({ id: r.id, section: r.section, label: r.label })),
@@ -40,14 +40,14 @@ export function staticChecklist() {
       rows.push({ id: `s${si}-${ii}`, section: section.section, label });
     });
   });
-  return build("static", TOP_NOTE, CHECKLIST_VERSION, rows);
+  return build("static", [TOP_NOTE], CHECKLIST_VERSION, rows);
 }
 
-// מזהה כשל שקט (timeout) כדי לזהות מצב שבו הבקשה נתקעת בלי לחזור.
+// מזהה השהיה ארוכה (רשת חלשה) כדי לזהות מצב שבו הבקשה נתקעת בלי לחזור.
 const LOAD_TIMEOUT_MS = 6000;
 const TIMEOUT = Symbol("timeout");
 
-function withTimeout(promise, ms) {
+export function withTimeout(promise, ms) {
   return Promise.race([
     promise,
     new Promise((resolve) => setTimeout(() => resolve(TIMEOUT), ms)),
@@ -68,12 +68,17 @@ export async function loadChecklist() {
           .eq("active", true)
           .order("position", { ascending: true }),
         supabase.from("checklist_settings").select("key, value"),
+        supabase
+          .from("checklist_notes")
+          .select("text, position")
+          .eq("active", true)
+          .order("position", { ascending: true }),
       ]),
       LOAD_TIMEOUT_MS
     );
 
     if (result === TIMEOUT) return staticChecklist();
-    const [itemsRes, settingsRes] = result;
+    const [itemsRes, settingsRes, notesRes] = result;
 
     if (itemsRes.error || !itemsRes.data || itemsRes.data.length === 0) {
       return staticChecklist();
@@ -84,9 +89,19 @@ export async function loadChecklist() {
       for (const row of settingsRes.data) settings[row.key] = row.value;
     }
 
+    // הערות: קודם מטבלת ההערות; אם ריקה/שגיאה — הערת ה-settings הישנה; ואז הקבועה.
+    let notes;
+    if (!notesRes.error && notesRes.data && notesRes.data.length > 0) {
+      notes = notesRes.data.map((n) => n.text);
+    } else if (settings.top_note) {
+      notes = [settings.top_note];
+    } else {
+      notes = [TOP_NOTE];
+    }
+
     return build(
       "live",
-      settings.top_note ?? TOP_NOTE,
+      notes,
       settings.checklist_version ?? CHECKLIST_VERSION,
       itemsRes.data.map((r) => ({ id: r.id, section: r.section, label: r.label }))
     );

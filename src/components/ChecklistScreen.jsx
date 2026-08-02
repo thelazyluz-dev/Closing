@@ -132,9 +132,16 @@ export default function ChecklistScreen({ onComplete }) {
           </button>
         </div>
 
-        {checklist.topNote && (
-          <div className="mt-3 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 px-4 py-3 font-semibold">
-            ⚠️ {checklist.topNote}
+        {checklist.notes.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {checklist.notes.map((note, i) => (
+              <div
+                key={i}
+                className="rounded-xl bg-amber-100 border border-amber-300 text-amber-900 px-4 py-3 font-semibold"
+              >
+                ⚠️ {note}
+              </div>
+            ))}
           </div>
         )}
       </header>

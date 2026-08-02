@@ -3,6 +3,7 @@ import { useRoute } from "./router.js";
 import ChecklistScreen from "./components/ChecklistScreen.jsx";
 import SuccessScreen from "./components/SuccessScreen.jsx";
 import HistoryScreen from "./components/HistoryScreen.jsx";
+import ManagerScreen from "./components/ManagerScreen.jsx";
 
 export default function App() {
   const { path } = useRoute();
@@ -10,6 +11,10 @@ export default function App() {
 
   if (path === "/history") {
     return <HistoryScreen />;
+  }
+
+  if (path === "/manager") {
+    return <ManagerScreen />;
   }
 
   // אחרי סגירה מוצלחת מוצג האישור בלבד. בכניסה/רענון הבא הדף נטען נקי מעצמו
