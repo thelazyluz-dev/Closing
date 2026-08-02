@@ -5,23 +5,17 @@ import SuccessScreen from "./components/SuccessScreen.jsx";
 import HistoryScreen from "./components/HistoryScreen.jsx";
 
 export default function App() {
-  const { path, navigate } = useRoute();
+  const { path } = useRoute();
   const [completed, setCompleted] = useState(null);
 
   if (path === "/history") {
     return <HistoryScreen />;
   }
 
+  // אחרי סגירה מוצלחת מוצג האישור בלבד. בכניסה/רענון הבא הדף נטען נקי מעצמו
+  // (ה-localStorage כבר התנקה), ולכן אין כפתור "סגירה חדשה".
   if (completed) {
-    return (
-      <SuccessScreen
-        record={completed}
-        onStartNew={() => {
-          setCompleted(null);
-          navigate("/");
-        }}
-      />
-    );
+    return <SuccessScreen record={completed} />;
   }
 
   return <ChecklistScreen onComplete={setCompleted} />;
