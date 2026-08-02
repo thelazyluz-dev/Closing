@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useLayoutEffect } from "react";
 import Section from "./Section.jsx";
 import ProgressBar from "./ProgressBar.jsx";
 import { useLocalStorage, clearStorage } from "../useLocalStorage.js";
@@ -19,6 +19,9 @@ export default function ChecklistScreen({ onComplete }) {
   const [online, setOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine
   );
+  // מדידת גובה פס הפעולה הקבוע כדי לשמור מספיק ריווח תחתון (שדה השם לא ייחתך).
+  const actionBarRef = useRef(null);
+  const [barHeight, setBarHeight] = useState(0);
 
   // טעינת תוכן הצ'קליסט (מ-Supabase, עם נפילה לרשימה הקבועה).
   useEffect(() => {
@@ -41,6 +44,21 @@ export default function ChecklistScreen({ onComplete }) {
       window.removeEventListener("offline", off);
     };
   }, []);
+
+  // עוקב אחרי גובה פס הפעולה (משתנה כשמופיעות שורות חיווי/הודעות).
+  useLayoutEffect(() => {
+    const el = actionBarRef.current;
+    if (!el) return;
+    const update = () => setBarHeight(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [checklist]);
 
   const allItems = checklist?.allItems ?? [];
   const total = checklist?.total ?? 0;
@@ -115,14 +133,15 @@ export default function ChecklistScreen({ onComplete }) {
   }
 
   return (
-    <div className="min-h-full pb-28">
+    <div
+      className="min-h-full"
+      style={{ paddingBottom: (barHeight || 120) + 24 }}
+    >
       <ProgressBar done={doneCount} total={total} />
 
       <header className="px-4 pt-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">
-            סגירת מפעל — יום שישי
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">סגירת מפעל</h1>
           <button
             type="button"
             onClick={() => navigate("/history", { from: "/" })}
@@ -176,7 +195,11 @@ export default function ChecklistScreen({ onComplete }) {
       </main>
 
       {/* אזור פעולה קבוע בתחתית */}
-      <div className="fixed bottom-0 inset-x-0 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3">
+      <div
+        ref={actionBarRef}
+        className="fixed bottom-0 inset-x-0 border-t border-slate-200 bg-white/95 backdrop-blur px-4 pt-3"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      >
         <div className="max-w-lg mx-auto">
           {!online && (
             <p className="text-center text-sm text-amber-700 mb-2">
