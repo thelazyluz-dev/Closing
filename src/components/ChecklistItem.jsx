@@ -3,10 +3,10 @@ export default function ChecklistItem({ id, label, checked, onToggle }) {
     <label
       htmlFor={id}
       className={
-        "flex items-center gap-3 rounded-xl border p-4 cursor-pointer select-none transition-colors active:scale-[0.99] " +
+        "flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none transition-colors border-s-4 " +
         (checked
-          ? "border-emerald-400 bg-emerald-50"
-          : "border-slate-200 bg-white")
+          ? "bg-emerald-50 border-s-emerald-500"
+          : "bg-white border-s-transparent active:bg-slate-50")
       }
     >
       <input

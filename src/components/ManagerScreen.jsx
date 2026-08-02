@@ -203,20 +203,21 @@ function Preview({ data }) {
       </div>
       <div className="space-y-4">
         {sections.map((s, si) => (
-          <div key={si}>
-            <div className="flex items-center gap-2 mb-1.5">
+          <div
+            key={si}
+            className="rounded-xl bg-white border border-slate-200 overflow-hidden"
+            style={{ borderTop: `4px solid ${accentFor(si)}` }}
+          >
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
               <span
                 className="inline-block w-1.5 h-5 rounded-full"
                 style={{ backgroundColor: accentFor(si) }}
               />
               <h4 className="text-lg font-bold text-slate-800">{s.name}</h4>
             </div>
-            <div className="space-y-1.5">
+            <div className="divide-y divide-slate-100">
               {s.items.map((label, ii) => (
-                <div
-                  key={ii}
-                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
-                >
+                <div key={ii} className="flex items-center gap-2 px-3 py-2">
                   <span className="w-5 h-5 rounded border-2 border-slate-300 shrink-0" />
                   <span className="text-slate-800">{label}</span>
                 </div>
