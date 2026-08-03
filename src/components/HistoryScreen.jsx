@@ -3,10 +3,30 @@ import { supabase, isSupabaseConfigured } from "../supabaseClient.js";
 import { formatDateTime } from "../utils/formatDateTime.js";
 import { useRoute, originPath } from "../router.js";
 
+// מקבץ את פריטי הסגירה לפי סעיף (שומר סדר). רשומות ישנות בלי status → נחשבות "בוצע".
+function groupBySection(items) {
+  const groups = [];
+  const byName = new Map();
+  for (const it of items || []) {
+    let g = byName.get(it.section);
+    if (!g) {
+      g = { section: it.section, items: [] };
+      byName.set(it.section, g);
+      groups.push(g);
+    }
+    g.items.push(it);
+  }
+  return groups;
+}
+
+const problemsOf = (items) =>
+  (items || []).filter((i) => i.status === "problem");
+
 export default function HistoryScreen() {
   const { navigate } = useRoute();
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [rows, setRows] = useState([]);
+  const [openId, setOpenId] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState("");
@@ -24,7 +44,7 @@ export default function HistoryScreen() {
     setStatus("loading");
     const { data, error } = await supabase
       .from("closings")
-      .select("id, worker_name, completed_at")
+      .select("id, worker_name, completed_at, items")
       .order("completed_at", { ascending: false });
 
     if (error) {
@@ -106,17 +126,95 @@ export default function HistoryScreen() {
           <ul className="space-y-2.5">
             {rows.map((row) => {
               const { date, time } = formatDateTime(row.completed_at);
+              const problems = problemsOf(row.items);
+              const open = openId === row.id;
               return (
                 <li
                   key={row.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4"
+                  className="rounded-xl border border-slate-200 bg-white overflow-hidden"
                 >
-                  <span className="text-lg font-semibold text-slate-900">
-                    {row.worker_name}
-                  </span>
-                  <span className="text-slate-600 tabular-nums text-sm">
-                    {date} · {time}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(open ? null : row.id)}
+                    className="w-full flex items-center justify-between gap-2 p-4 text-start"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-lg font-semibold text-slate-900 truncate">
+                        {row.worker_name}
+                      </span>
+                      {problems.length > 0 && (
+                        <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700">
+                          ⚠ {problems.length}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-slate-600 tabular-nums text-sm">
+                        {date} · {time}
+                      </span>
+                      <span
+                        className={
+                          "text-slate-400 transition-transform " +
+                          (open ? "rotate-180" : "")
+                        }
+                        aria-hidden="true"
+                      >
+                        ▾
+                      </span>
+                    </div>
+                  </button>
+
+                  {open && (
+                    <div className="border-t border-slate-100 px-4 py-3 space-y-3">
+                      {groupBySection(row.items).map((g, gi) => (
+                        <div key={gi}>
+                          <div className="text-sm font-bold text-slate-700 mb-1">
+                            {g.section}
+                          </div>
+                          <ul className="space-y-1.5">
+                            {g.items.map((it, ii) => {
+                              const problem = it.status === "problem";
+                              return (
+                                <li key={ii}>
+                                  <div className="flex items-start gap-2 text-sm">
+                                    <span
+                                      className={
+                                        "shrink-0 font-bold " +
+                                        (problem
+                                          ? "text-red-600"
+                                          : "text-emerald-600")
+                                      }
+                                    >
+                                      {problem ? "✕" : "✓"}
+                                    </span>
+                                    <span
+                                      className={
+                                        problem
+                                          ? "text-slate-800"
+                                          : "text-slate-500"
+                                      }
+                                    >
+                                      {it.label}
+                                    </span>
+                                  </div>
+                                  {problem && it.note && (
+                                    <div className="text-red-700 text-xs pe-6 mt-0.5">
+                                      ↳ {it.note}
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ))}
+                      {(!row.items || row.items.length === 0) && (
+                        <p className="text-slate-400 text-sm">
+                          אין פירוט לרשומה זו.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}

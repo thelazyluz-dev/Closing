@@ -5,16 +5,20 @@ import Loading from "./Loading.jsx";
 import { useLocalStorage, clearStorage } from "../useLocalStorage.js";
 import { supabase, isSupabaseConfigured } from "../supabaseClient.js";
 import { loadChecklist } from "../checklistSource.js";
+import { notDonePhrase } from "../text.js";
 
-export const STORAGE_CHECKED = "closing.checked.v1";
+export const STORAGE_STATES = "closing.states.v2";
+export const STORAGE_NOTES = "closing.notes.v2";
 export const STORAGE_NAME = "closing.name.v1";
 
 export default function ChecklistScreen({ onComplete }) {
   const [checklist, setChecklist] = useState(null); // תוכן הצ'קליסט הנטען
-  const [checked, setChecked] = useLocalStorage(STORAGE_CHECKED, {});
+  const [states, setStates] = useLocalStorage(STORAGE_STATES, {}); // {id: "done"|"problem"}
+  const [notes, setNotes] = useLocalStorage(STORAGE_NOTES, {}); // {id: "טקסט הערה"}
   const [name, setName] = useLocalStorage(STORAGE_NAME, "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [online, setOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine
   );
@@ -44,35 +48,72 @@ export default function ChecklistScreen({ onComplete }) {
   const allItems = checklist?.allItems ?? [];
   const total = checklist?.total ?? 0;
 
-  const doneCount = useMemo(
-    () => allItems.reduce((n, it) => n + (checked[it.id] ? 1 : 0), 0),
-    [allItems, checked]
+  const { doneCount, problemCount } = useMemo(() => {
+    let d = 0;
+    let p = 0;
+    for (const it of allItems) {
+      if (states[it.id] === "done") d++;
+      else if (states[it.id] === "problem") p++;
+    }
+    return { doneCount: d, problemCount: p };
+  }, [allItems, states]);
+
+  const addressed = doneCount + problemCount;
+  const allAddressed = total > 0 && addressed === total;
+
+  // כל תקלה חייבת הערה.
+  const notesOk = useMemo(
+    () =>
+      allItems.every(
+        (it) => states[it.id] !== "problem" || (notes[it.id] || "").trim()
+      ),
+    [allItems, states, notes]
   );
 
   const trimmedName = name.trim();
-  const remaining = total - doneCount;
-  const allDone = total > 0 && remaining === 0;
   const nameOk = trimmedName.length > 0;
-  const canSubmit = allDone && nameOk && !saving;
+  const canSubmit = allAddressed && notesOk && nameOk && !saving;
 
-  function toggle(id) {
-    setChecked((prev) => {
+  function setStatus(id, status) {
+    setStates((prev) => {
       const next = { ...prev };
-      if (next[id]) {
+      if (status === null) {
         delete next[id];
       } else {
-        next[id] = true;
-        // רטט קצר במכשירים שתומכים — משוב מגע נעים בעת סימון.
-        if (typeof navigator !== "undefined" && navigator.vibrate) {
+        next[id] = status;
+        if (status === "done" && typeof navigator !== "undefined" && navigator.vibrate) {
           navigator.vibrate(15);
         }
       }
       return next;
     });
+    // מעבר ל"בוצע" / ביטול — מנקים הערה ישנה כדי שלא תישמר בטעות.
+    if (status !== "problem") {
+      setNotes((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
   }
 
-  async function handleSubmit() {
+  function setNote(id, text) {
+    setNotes((prev) => ({ ...prev, [id]: text }));
+  }
+
+  function attemptSubmit() {
     if (!canSubmit) return;
+    // אם יש תקלות — לוודא שזה מודע לפני סגירה.
+    if (problemCount > 0) {
+      setConfirmOpen(true);
+      return;
+    }
+    doSubmit();
+  }
+
+  async function doSubmit() {
+    setConfirmOpen(false);
     setError("");
 
     if (!isSupabaseConfigured) {
@@ -80,10 +121,18 @@ export default function ChecklistScreen({ onComplete }) {
       return;
     }
 
-    // snapshot של הפריטים שסומנו: מערך של { section, label }
-    const items = allItems
-      .filter((it) => checked[it.id])
-      .map((it) => ({ section: it.section, label: it.label }));
+    // snapshot מלא: לכל פריט הסטטוס שלו (וגם הערה לתקלה).
+    const items = allItems.map((it) => {
+      if (states[it.id] === "problem") {
+        return {
+          section: it.section,
+          label: it.label,
+          status: "problem",
+          note: (notes[it.id] || "").trim(),
+        };
+      }
+      return { section: it.section, label: it.label, status: "done" };
+    });
 
     setSaving(true);
     const { data, error: dbError } = await supabase
@@ -100,15 +149,16 @@ export default function ChecklistScreen({ onComplete }) {
     if (dbError) {
       setError(
         navigator.onLine
-          ? "השמירה נכשלה. הסימונים והשם נשמרו — אפשר לנסות שוב."
-          : "אין חיבור לרשת. הסימונים והשם נשמרו — נסה שוב כשהחיבור יחזור."
+          ? "השמירה נכשלה. הכל נשמר במכשיר — אפשר לנסות שוב."
+          : "אין חיבור לרשת. הכל נשמר במכשיר — נסה שוב כשהחיבור יחזור."
       );
       return;
     }
 
+    const problems = items.filter((i) => i.status === "problem");
     // הצלחה — ננקה את ההתקדמות הזמנית כדי שהסגירה הבאה תתחיל נקייה.
-    clearStorage(STORAGE_CHECKED, STORAGE_NAME);
-    onComplete(data);
+    clearStorage(STORAGE_STATES, STORAGE_NOTES, STORAGE_NAME);
+    onComplete({ ...data, problems });
   }
 
   // מצב טעינה קצר בזמן משיכת תוכן הצ'קליסט.
@@ -118,7 +168,7 @@ export default function ChecklistScreen({ onComplete }) {
 
   return (
     <div className="min-h-full pb-8">
-      <ProgressBar done={doneCount} total={total} />
+      <ProgressBar done={addressed} total={total} hasProblems={problemCount > 0} />
 
       <header className="px-4 pt-4">
         <img
@@ -148,8 +198,10 @@ export default function ChecklistScreen({ onComplete }) {
             key={section.section}
             section={section}
             sectionIndex={si}
-            checked={checked}
-            onToggle={toggle}
+            states={states}
+            notes={notes}
+            onSetStatus={setStatus}
+            onSetNote={setNote}
           />
         ))}
 
@@ -175,35 +227,73 @@ export default function ChecklistScreen({ onComplete }) {
         <div className="mt-6">
           {!online && (
             <p className="text-center text-sm text-amber-700 mb-2">
-              אין חיבור לרשת — הסימונים נשמרים במכשיר.
+              אין חיבור לרשת — הכל נשמר במכשיר.
             </p>
           )}
           {error && (
             <p className="text-center text-sm text-red-600 mb-2">{error}</p>
           )}
-          {allDone && !nameOk && !saving && (
+          {allAddressed && !notesOk && (
+            <p className="text-center text-sm text-red-600 mb-2">
+              יש למלא הערה לכל פריט שסומן "לא הצלחתי"
+            </p>
+          )}
+          {allAddressed && notesOk && !nameOk && (
             <p className="text-center text-sm text-slate-500 mb-2">
               יש להזין שם
             </p>
           )}
-          {canSubmit && (
+          {canSubmit && problemCount === 0 && (
             <p className="text-center text-sm text-emerald-700 font-semibold mb-2">
               הכל מוכן — אפשר לסגור ✅
             </p>
           )}
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className={
-              "w-full rounded-xl text-lg font-bold py-4 transition-colors " +
-              (canSubmit
-                ? "bg-emerald-600 text-white active:bg-emerald-700 btn-ready"
-                : "bg-slate-200 text-slate-400 cursor-not-allowed")
-            }
-          >
-            {saving ? "שומר…" : error ? "נסה שוב" : "סיום וסגירה"}
-          </button>
+          {canSubmit && problemCount > 0 && (
+            <p className="text-center text-sm text-amber-700 font-semibold mb-2">
+              כל הפריטים טופלו · {notDonePhrase(problemCount)}
+            </p>
+          )}
+
+          {confirmOpen ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-center">
+              <p className="text-amber-900 font-semibold mb-1">
+                {notDonePhrase(problemCount)}
+              </p>
+              <p className="text-amber-800 text-sm mb-4">
+                הדיווח יישמר. לסגור את המפעל בכל זאת?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmOpen(false)}
+                  className="flex-1 rounded-xl border border-slate-300 bg-white font-semibold py-3 active:bg-slate-100"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="button"
+                  onClick={doSubmit}
+                  className="flex-1 rounded-xl bg-emerald-600 text-white font-semibold py-3 active:bg-emerald-700"
+                >
+                  כן, סגור
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={attemptSubmit}
+              disabled={!canSubmit}
+              className={
+                "w-full rounded-xl text-lg font-bold py-4 transition-colors " +
+                (canSubmit
+                  ? "bg-emerald-600 text-white active:bg-emerald-700 btn-ready"
+                  : "bg-slate-200 text-slate-400 cursor-not-allowed")
+              }
+            >
+              {saving ? "שומר…" : error ? "נסה שוב" : "סיום וסגירה"}
+            </button>
+          )}
         </div>
       </main>
     </div>

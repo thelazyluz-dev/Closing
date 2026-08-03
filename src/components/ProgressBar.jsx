@@ -1,12 +1,19 @@
-export default function ProgressBar({ done, total }) {
+export default function ProgressBar({ done, total, hasProblems = false }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const complete = done === total && total > 0;
+
+  // צבע: ירוק כשהכל טופל ונקי, כתום כשהכל טופל אבל יש תקלות, תכלת תוך כדי.
+  const fill = complete
+    ? hasProblems
+      ? "bg-amber-400"
+      : "bg-emerald-400"
+    : "bg-sky-400";
 
   return (
     <div className="sticky top-0 z-10 bg-slate-900 text-white px-4 py-3 shadow-md">
       <div className="flex items-center justify-between mb-2">
         <span className="text-base font-semibold">
-          סומנו {done} מתוך {total}
+          טופלו {done} מתוך {total}
         </span>
         <span className="text-sm tabular-nums opacity-90">{pct}%</span>
       </div>
@@ -18,10 +25,7 @@ export default function ProgressBar({ done, total }) {
         aria-valuenow={done}
       >
         <div
-          className={
-            "h-full rounded-full transition-all duration-300 " +
-            (complete ? "bg-emerald-400" : "bg-sky-400")
-          }
+          className={"h-full rounded-full transition-all duration-300 " + fill}
           style={{ width: `${pct}%` }}
         />
       </div>

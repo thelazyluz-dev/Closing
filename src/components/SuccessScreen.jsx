@@ -2,6 +2,7 @@ import { formatDateTime } from "../utils/formatDateTime.js";
 
 export default function SuccessScreen({ record }) {
   const { date, time } = formatDateTime(record.completed_at);
+  const problems = record.problems || [];
 
   return (
     <div className="min-h-full flex flex-col items-center justify-center px-6 py-12 text-center">
@@ -38,6 +39,25 @@ export default function SuccessScreen({ record }) {
           {date} · {time}
         </div>
       </div>
+
+      {problems.length > 0 && (
+        <div className="success-fade w-full max-w-sm rounded-2xl bg-red-50 border border-red-200 p-4 mb-6 text-start">
+          <div className="text-red-800 font-semibold mb-2 text-center">
+            ⚠️{" "}
+            {problems.length === 1
+              ? "דווח פריט אחד שלא בוצע"
+              : `דווחו ${problems.length} פריטים שלא בוצעו`}
+          </div>
+          <ul className="space-y-1.5">
+            {problems.map((p, i) => (
+              <li key={i} className="text-sm text-red-700">
+                <span className="font-semibold">{p.label}</span>
+                {p.note ? ` — ${p.note}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <p className="success-fade text-slate-500">אפשר לסגור את החלון. תודה!</p>
     </div>
